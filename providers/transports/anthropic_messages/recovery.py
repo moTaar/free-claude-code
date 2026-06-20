@@ -7,15 +7,15 @@ from typing import Any
 
 import httpx
 
-from core.anthropic.emitted_sse_tracker import EmittedNativeSseTracker
 from core.anthropic.stream_contracts import parse_sse_text
-from core.anthropic.stream_recovery import (
+from core.anthropic.streaming import (
     MIDSTREAM_RECOVERY_ATTEMPTS,
+    AnthropicStreamLedger,
     accept_tool_json_repair,
     continuation_suffix,
     is_retryable_stream_error,
-    make_native_text_recovery_body,
-    make_native_tool_repair_body,
+    make_text_recovery_body,
+    make_tool_repair_body,
     parse_complete_tool_input,
     tool_schemas_by_name,
 )
@@ -105,7 +105,7 @@ class AnthropicMessagesRecovery:
         *,
         body: dict[str, Any],
         request: Any,
-        tracker: EmittedNativeSseTracker,
+        ledger: AnthropicStreamLedger,
         error: Exception,
         request_id: str | None,
         req_tag: str,
@@ -116,9 +116,9 @@ class AnthropicMessagesRecovery:
             return None
 
         schemas = tool_schemas_by_name(request)
-        if tracker.has_tool_block():
+        if ledger.tool_blocks():
             repair_events: list[str] = []
-            for index, block in enumerate(tracker.tool_blocks()):
+            for index, block in enumerate(ledger.tool_blocks()):
                 if (
                     block.tool_id
                     and block.name
@@ -127,7 +127,7 @@ class AnthropicMessagesRecovery:
                 ):
                     continue
                 schema = schemas.get(block.name)
-                recovery_body = make_native_tool_repair_body(
+                recovery_body = make_tool_repair_body(
                     body,
                     tool_name=block.name,
                     prefix=block.content,
@@ -160,13 +160,13 @@ class AnthropicMessagesRecovery:
                 if accepted_suffix is None:
                     return None
                 repair_events.extend(
-                    tracker.append_tool_repair_suffix(index, accepted_suffix)
+                    ledger.append_tool_repair_suffix(index, accepted_suffix)
                 )
 
-            if not tracker.can_salvage_tool_use(schemas):
+            if not ledger.can_salvage_tool_use(schemas):
                 return None
             events = list(repair_events)
-            events.extend(tracker.iter_success_tail("tool_use"))
+            events.extend(ledger.success_tail("tool_use"))
             trace_event(
                 stage="provider",
                 event="provider.recovery.tool_salvaged",
@@ -176,11 +176,11 @@ class AnthropicMessagesRecovery:
             )
             return events
 
-        partial_text = tracker.emitted_text()
-        partial_thinking = tracker.emitted_thinking()
+        partial_text = ledger.accumulated_text
+        partial_thinking = ledger.accumulated_reasoning
         if not partial_text and not partial_thinking:
             return None
-        recovery_body = make_native_text_recovery_body(body, partial_text)
+        recovery_body = make_text_recovery_body(body, partial_text)
         text, thinking = await self.collect_text(
             recovery_body,
             req_tag=req_tag,
@@ -190,12 +190,12 @@ class AnthropicMessagesRecovery:
         thinking_suffix = continuation_suffix(partial_thinking, thinking)
         events: list[str] = []
         if thinking_suffix:
-            events.extend(tracker.append_thinking_suffix(thinking_suffix))
+            events.extend(ledger.append_thinking_suffix(thinking_suffix))
         if text_suffix:
-            events.extend(tracker.append_text_suffix(text_suffix))
+            events.extend(ledger.append_text_suffix(text_suffix))
         if not events:
             return None
-        events.extend(tracker.iter_success_tail("end_turn"))
+        events.extend(ledger.success_tail("end_turn"))
         trace_event(
             stage="provider",
             event="provider.recovery.continued",

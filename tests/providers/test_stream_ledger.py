@@ -1,13 +1,13 @@
-"""Tests for core.anthropic.sse."""
+"""Tests for core.anthropic.streaming.ledger."""
 
 from typing import Any, cast
 from unittest.mock import patch
 
 import pytest
 
-from core.anthropic import ContentBlockManager, SSEBuilder, map_stop_reason
-from core.anthropic.sse import ToolCallState
+from core.anthropic import AnthropicStreamLedger, StreamBlockLedger, map_stop_reason
 from core.anthropic.stream_contracts import parse_sse_text
+from core.anthropic.streaming import ToolBlockState
 
 
 def _parse_sse(sse_str: str) -> dict:
@@ -46,17 +46,17 @@ class TestMapStopReason:
         assert map_stop_reason(openai_reason) == expected
 
 
-class TestContentBlockManager:
-    """Tests for ContentBlockManager."""
+class TestStreamBlockLedger:
+    """Tests for StreamBlockLedger."""
 
     def test_allocate_index_increments(self):
-        mgr = ContentBlockManager()
+        mgr = StreamBlockLedger()
         assert mgr.allocate_index() == 0
         assert mgr.allocate_index() == 1
         assert mgr.allocate_index() == 2
 
     def test_initial_state(self):
-        mgr = ContentBlockManager()
+        mgr = StreamBlockLedger()
         assert mgr.thinking_index == -1
         assert mgr.text_index == -1
         assert mgr.thinking_started is False
@@ -65,8 +65,8 @@ class TestContentBlockManager:
 
     def test_flush_task_arg_buffers_logs_digest_not_secret(self, caplog):
         """Invalid Task JSON warnings must not echo argument prefixes (secrets)."""
-        mgr = ContentBlockManager()
-        mgr.tool_states[0] = ToolCallState(
+        mgr = StreamBlockLedger()
+        mgr.tool_states[0] = ToolBlockState(
             block_index=0, tool_id="call_x", name="Task", started=True
         )
         mgr.tool_states[
@@ -82,11 +82,11 @@ class TestContentBlockManager:
         assert "buffer_sha256_prefix=" in text
 
 
-class TestSSEBuilderMessageLifecycle:
+class TestAnthropicStreamLedgerMessageLifecycle:
     """Tests for message_start, message_delta, message_stop."""
 
     def test_message_start(self):
-        builder = SSEBuilder("msg_123", "test-model", input_tokens=50)
+        builder = AnthropicStreamLedger("msg_123", "test-model", input_tokens=50)
         sse = builder.message_start()
 
         assert "event: message_start" in sse
@@ -101,7 +101,7 @@ class TestSSEBuilderMessageLifecycle:
         assert msg["usage"]["output_tokens"] == 1
 
     def test_message_delta(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         sse = builder.message_delta("end_turn", 42)
 
         assert "event: message_delta" in sse
@@ -111,7 +111,7 @@ class TestSSEBuilderMessageLifecycle:
         assert data["usage"]["output_tokens"] == 42
 
     def test_message_start_coerces_non_int_input_tokens(self):
-        builder = SSEBuilder("msg_1", "model", input_tokens=0)
+        builder = AnthropicStreamLedger("msg_1", "model", input_tokens=0)
         builder.input_tokens = cast(Any, "not_an_int")
         sse = builder.message_start()
         data = _parse_sse(sse)
@@ -119,20 +119,20 @@ class TestSSEBuilderMessageLifecycle:
         assert data["message"]["usage"]["output_tokens"] == 1
 
     def test_message_delta_coerces_none_output_tokens(self):
-        builder = SSEBuilder("msg_1", "model", input_tokens=3)
+        builder = AnthropicStreamLedger("msg_1", "model", input_tokens=3)
         sse = builder.message_delta("end_turn", None)
         data = _parse_sse(sse)
         assert data["usage"]["input_tokens"] == 3
         assert data["usage"]["output_tokens"] == 0
 
     def test_message_delta_preserves_zero_output_tokens(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         sse = builder.message_delta("end_turn", 0)
         data = _parse_sse(sse)
         assert data["usage"]["output_tokens"] == 0
 
     def test_message_stop(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         sse = builder.message_stop()
 
         assert "event: message_stop" in sse
@@ -140,11 +140,11 @@ class TestSSEBuilderMessageLifecycle:
         assert data["type"] == "message_stop"
 
 
-class TestSSEBuilderContentBlocks:
+class TestAnthropicStreamLedgerContentBlocks:
     """Tests for content block start/delta/stop events."""
 
     def test_content_block_start_text(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         sse = builder.content_block_start(0, "text", text="hello")
 
         data = _parse_sse(sse)
@@ -154,7 +154,7 @@ class TestSSEBuilderContentBlocks:
         assert data["content_block"]["text"] == "hello"
 
     def test_content_block_start_thinking(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         sse = builder.content_block_start(1, "thinking")
 
         data = _parse_sse(sse)
@@ -162,7 +162,7 @@ class TestSSEBuilderContentBlocks:
         assert data["content_block"]["thinking"] == ""
 
     def test_content_block_start_tool_use(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         sse = builder.content_block_start(
             2, "tool_use", id="tool_123", name="Read", input={}
         )
@@ -174,7 +174,7 @@ class TestSSEBuilderContentBlocks:
         assert data["content_block"]["input"] == {}
 
     def test_content_block_start_tool_use_extra_content(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         sse = builder.content_block_start(
             2,
             "tool_use",
@@ -190,7 +190,7 @@ class TestSSEBuilderContentBlocks:
         }
 
     def test_content_block_delta_text(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         sse = builder.content_block_delta(0, "text_delta", "hello world")
 
         data = _parse_sse(sse)
@@ -200,7 +200,7 @@ class TestSSEBuilderContentBlocks:
         assert data["delta"]["text"] == "hello world"
 
     def test_content_block_delta_thinking(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         sse = builder.content_block_delta(1, "thinking_delta", "reasoning...")
 
         data = _parse_sse(sse)
@@ -208,7 +208,7 @@ class TestSSEBuilderContentBlocks:
         assert data["delta"]["thinking"] == "reasoning..."
 
     def test_content_block_delta_input_json(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         sse = builder.content_block_delta(2, "input_json_delta", '{"key": "val"}')
 
         data = _parse_sse(sse)
@@ -216,7 +216,7 @@ class TestSSEBuilderContentBlocks:
         assert data["delta"]["partial_json"] == '{"key": "val"}'
 
     def test_content_block_stop(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         sse = builder.content_block_stop(0)
 
         data = _parse_sse(sse)
@@ -224,11 +224,11 @@ class TestSSEBuilderContentBlocks:
         assert data["index"] == 0
 
 
-class TestSSEBuilderHighLevelHelpers:
+class TestAnthropicStreamLedgerHighLevelHelpers:
     """Tests for high-level thinking/text/tool block helpers."""
 
     def test_start_and_stop_thinking_block(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
 
         start_sse = builder.start_thinking_block()
         data = _parse_sse(start_sse)
@@ -242,7 +242,7 @@ class TestSSEBuilderHighLevelHelpers:
         assert builder.blocks.thinking_started is False
 
     def test_emit_thinking_delta_accumulates(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         builder.start_thinking_block()
 
         builder.emit_thinking_delta("part1 ")
@@ -251,7 +251,7 @@ class TestSSEBuilderHighLevelHelpers:
         assert builder.accumulated_reasoning == "part1 part2"
 
     def test_start_and_stop_text_block(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
 
         start_sse = builder.start_text_block()
         data = _parse_sse(start_sse)
@@ -263,7 +263,7 @@ class TestSSEBuilderHighLevelHelpers:
         assert builder.blocks.text_started is False
 
     def test_emit_text_delta_accumulates(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         builder.start_text_block()
 
         builder.emit_text_delta("hello ")
@@ -272,7 +272,7 @@ class TestSSEBuilderHighLevelHelpers:
         assert builder.accumulated_text == "hello world"
 
     def test_start_tool_block(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         sse = builder.start_tool_block(0, "tool_abc", "Grep")
 
         data = _parse_sse(sse)
@@ -282,16 +282,16 @@ class TestSSEBuilderHighLevelHelpers:
         assert 0 in builder.blocks.tool_states
 
     def test_emit_tool_delta(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         builder.start_tool_block(0, "tool_abc", "Grep")
 
         sse = builder.emit_tool_delta(0, '{"pattern":')
         data = _parse_sse(sse)
         assert data["delta"]["partial_json"] == '{"pattern":'
-        assert "".join(builder.blocks.tool_states[0].contents) == '{"pattern":'
+        assert "".join(builder.blocks.tool_states[0].parts) == '{"pattern":'
 
     def test_stop_tool_block(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         builder.start_tool_block(0, "tool_abc", "Grep")
 
         sse = builder.stop_tool_block(0)
@@ -299,11 +299,11 @@ class TestSSEBuilderHighLevelHelpers:
         assert data["type"] == "content_block_stop"
 
 
-class TestSSEBuilderStateManagement:
+class TestAnthropicStreamLedgerStateManagement:
     """Tests for ensure_thinking_block, ensure_text_block, close_all_blocks."""
 
     def test_ensure_thinking_block_closes_text_first(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         builder.start_text_block()
         assert builder.blocks.text_started is True
 
@@ -314,14 +314,14 @@ class TestSSEBuilderStateManagement:
         assert builder.blocks.thinking_started is True
 
     def test_ensure_thinking_block_noop_if_already_started(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         builder.start_thinking_block()
 
         events = list(builder.ensure_thinking_block())
         assert events == []
 
     def test_ensure_text_block_closes_thinking_first(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         builder.start_thinking_block()
         assert builder.blocks.thinking_started is True
 
@@ -332,14 +332,14 @@ class TestSSEBuilderStateManagement:
         assert builder.blocks.text_started is True
 
     def test_ensure_text_block_noop_if_already_started(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         builder.start_text_block()
 
         events = list(builder.ensure_text_block())
         assert events == []
 
     def test_close_content_blocks(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         builder.start_thinking_block()
         builder.stop_thinking_block()
         builder.start_text_block()
@@ -350,7 +350,7 @@ class TestSSEBuilderStateManagement:
         assert builder.blocks.text_started is False
 
     def test_close_all_blocks(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         builder.start_thinking_block()
         builder.stop_thinking_block()
         builder.start_text_block()
@@ -363,16 +363,16 @@ class TestSSEBuilderStateManagement:
         assert builder.blocks.text_started is False
 
     def test_close_all_blocks_empty(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         events = list(builder.close_all_blocks())
         assert events == []
 
 
-class TestSSEBuilderError:
+class TestAnthropicStreamLedgerError:
     """Tests for emit_error."""
 
     def test_emit_error(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         events = list(builder.emit_error("Something went wrong"))
 
         assert len(events) == 3  # start, delta, stop
@@ -386,11 +386,11 @@ class TestSSEBuilderError:
         assert stop_data["type"] == "content_block_stop"
 
 
-class TestSSEBuilderTokenEstimation:
+class TestAnthropicStreamLedgerTokenEstimation:
     """Tests for estimate_output_tokens."""
 
     def test_estimate_with_text_only(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         builder.start_text_block()
         builder.emit_text_delta("hello world")
 
@@ -398,7 +398,7 @@ class TestSSEBuilderTokenEstimation:
         assert tokens > 0
 
     def test_estimate_with_reasoning(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         builder.start_thinking_block()
         builder.emit_thinking_delta("deep thought")
         builder.stop_thinking_block()
@@ -409,27 +409,27 @@ class TestSSEBuilderTokenEstimation:
         assert tokens > 0
 
     def test_estimate_empty(self):
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         tokens = builder.estimate_output_tokens()
         assert tokens == 0
 
     def test_estimate_without_tiktoken(self):
         """Fallback estimation when tiktoken is not available."""
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         builder.start_text_block()
         builder.emit_text_delta("a" * 100)  # 100 chars -> ~25 tokens
 
-        with patch("core.anthropic.sse.ENCODER", None):
+        with patch("core.anthropic.streaming.ledger.ENCODER", None):
             tokens = builder.estimate_output_tokens()
             assert tokens == 25  # 100 // 4
 
     def test_estimate_with_tools_no_tiktoken(self):
         """Fallback tool token estimation."""
-        builder = SSEBuilder("msg_1", "model")
+        builder = AnthropicStreamLedger("msg_1", "model")
         builder.start_tool_block(0, "t1", "Read")
         builder.emit_tool_delta(0, '{"path":"test.py"}')
 
-        with patch("core.anthropic.sse.ENCODER", None):
+        with patch("core.anthropic.streaming.ledger.ENCODER", None):
             tokens = builder.estimate_output_tokens()
             # 1 tool * 50 = 50
             assert tokens == 50

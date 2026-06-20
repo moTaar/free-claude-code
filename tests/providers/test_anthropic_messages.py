@@ -7,8 +7,8 @@ import httpx
 import pytest
 
 from config.constants import ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS
-from core.anthropic.sse import format_sse_event
 from core.anthropic.stream_contracts import event_index, parse_sse_text
+from core.anthropic.streaming import format_sse_event
 from providers.base import ProviderConfig
 from providers.transports.anthropic_messages import AnthropicMessagesTransport
 from providers.transports.anthropic_messages.recovery import AnthropicMessagesRecovery
@@ -206,13 +206,9 @@ async def test_stream_uses_retry_builds_request_and_closes_response(
     ):
         events = [event async for event in provider.stream_response(req)]
 
-    assert events == [
-        "event: message_start\n",
-        'data: {"type":"message_start"}\n',
-        "\n",
-        "event: message_stop\n",
-        'data: {"type":"message_stop"}\n',
-        "\n",
+    assert [event.event for event in parse_sse_text("".join(events))] == [
+        "message_start",
+        "message_stop",
     ]
     assert response.is_closed
     assert mock_build.call_args.args[:2] == ("POST", "/messages")
