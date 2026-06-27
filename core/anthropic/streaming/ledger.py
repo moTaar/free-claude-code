@@ -450,7 +450,7 @@ class AnthropicStreamLedger:
             )
 
     def append_text_suffix(self, suffix: str) -> Iterator[str]:
-        if not suffix:
+        if not suffix or not self.can_append_content():
             return
         active = self._last_open_block("text")
         if active is None:
@@ -460,7 +460,7 @@ class AnthropicStreamLedger:
         yield self.content_block_delta(active.index, "text_delta", suffix)
 
     def append_thinking_suffix(self, suffix: str) -> Iterator[str]:
-        if not suffix:
+        if not suffix or not self.can_append_content():
             return
         active = self._last_open_block("thinking")
         if active is None:
@@ -471,7 +471,11 @@ class AnthropicStreamLedger:
 
     def append_tool_repair_suffix(self, tool_index: int, suffix: str) -> Iterator[str]:
         tool_blocks = self.tool_blocks()
-        if tool_index >= len(tool_blocks) or not suffix:
+        if (
+            tool_index >= len(tool_blocks)
+            or not suffix
+            or not self.can_append_content()
+        ):
             return
         block = tool_blocks[tool_index]
         yield self.content_block_delta(block.index, "input_json_delta", suffix)
@@ -479,7 +483,9 @@ class AnthropicStreamLedger:
     def success_tail(self, stop_reason: str) -> Iterator[str]:
         yield from self.close_unclosed_blocks()
         if self.stop_reason is None:
-            yield self.message_delta(stop_reason, self.estimate_output_tokens())
+            yield self.message_delta(
+                self.final_stop_reason(stop_reason), self.estimate_output_tokens()
+            )
         if not self.message_stopped:
             yield self.message_stop()
 
@@ -546,6 +552,14 @@ class AnthropicStreamLedger:
 
     def has_content_block(self) -> bool:
         return bool(self._content_blocks)
+
+    def can_append_content(self) -> bool:
+        return self.stop_reason is None and not self.message_stopped
+
+    def final_stop_reason(self, fallback: str) -> str:
+        if self.has_emitted_tool_block():
+            return "tool_use"
+        return fallback
 
     def has_terminal_message(self) -> bool:
         return self.message_stopped

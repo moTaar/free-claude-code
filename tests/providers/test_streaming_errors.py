@@ -644,7 +644,10 @@ class TestStreamingExceptionHandling:
         assert not any(event.event == "error" for event in parsed)
 
     @pytest.mark.asyncio
-    async def test_heuristic_only_tool_stream_does_not_emit_fallback_text(self):
+    @pytest.mark.parametrize("finish_reason", ["tool_calls", "stop"])
+    async def test_heuristic_only_tool_stream_does_not_emit_fallback_text(
+        self, finish_reason
+    ):
         """Text-parsed tool calls count as emitted tool output when finalizing."""
         provider = _make_provider()
         request = _make_request()
@@ -655,7 +658,7 @@ class TestStreamingExceptionHandling:
         stream_mock = AsyncStreamMock(
             [
                 _make_chunk(content=heuristic_tool),
-                _make_chunk(finish_reason="tool_calls"),
+                _make_chunk(finish_reason=finish_reason),
             ]
         )
 

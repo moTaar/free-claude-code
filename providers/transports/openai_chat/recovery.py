@@ -107,7 +107,10 @@ class OpenAIChatRecovery:
             events = list(repair_events)
             events.extend(ledger.close_all_blocks())
             events.append(
-                ledger.message_delta("tool_use", ledger.estimate_output_tokens())
+                ledger.message_delta(
+                    ledger.final_stop_reason("end_turn"),
+                    ledger.estimate_output_tokens(),
+                )
             )
             events.append(ledger.message_stop())
             trace_event(
@@ -140,7 +143,11 @@ class OpenAIChatRecovery:
         if not events:
             return None
         events.extend(ledger.close_all_blocks())
-        events.append(ledger.message_delta("end_turn", ledger.estimate_output_tokens()))
+        events.append(
+            ledger.message_delta(
+                ledger.final_stop_reason("end_turn"), ledger.estimate_output_tokens()
+            )
+        )
         events.append(ledger.message_stop())
         trace_event(
             stage="provider",

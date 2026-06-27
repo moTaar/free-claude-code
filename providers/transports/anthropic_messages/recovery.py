@@ -174,7 +174,7 @@ class AnthropicMessagesRecovery:
             if not ledger.can_salvage_tool_use(schemas):
                 return None
             events = list(repair_events)
-            events.extend(ledger.success_tail("tool_use"))
+            events.extend(ledger.success_tail("end_turn"))
             trace_event(
                 stage="provider",
                 event="provider.recovery.tool_salvaged",
@@ -187,6 +187,8 @@ class AnthropicMessagesRecovery:
         partial_text = ledger.accumulated_text
         partial_thinking = ledger.accumulated_reasoning
         if not partial_text and not partial_thinking:
+            return None
+        if not ledger.can_append_content():
             return None
         recovery_body = make_text_recovery_body(body, partial_text)
         text, thinking = await self.collect_text(

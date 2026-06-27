@@ -371,7 +371,10 @@ class OpenAIChatStreamAdapter:
             prompt_tokens_estimate=self._input_tokens,
         )
         for event in hold_event(
-            ledger.message_delta(map_stop_reason(finish_reason), output_tokens)
+            ledger.message_delta(
+                ledger.final_stop_reason(map_stop_reason(finish_reason)),
+                output_tokens,
+            )
         ):
             yield event
         for event in hold_event(ledger.message_stop()):

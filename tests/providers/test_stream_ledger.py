@@ -410,6 +410,35 @@ class TestAnthropicStreamLedgerHighLevelHelpers:
             if event.event == "content_block_stop"
         ] == [1]
 
+    def test_suffix_helpers_noop_after_message_delta(self):
+        builder = AnthropicStreamLedger("msg_1", "model")
+        builder.start_text_block()
+        builder.emit_text_delta("hello")
+        builder.stop_text_block()
+        builder.start_tool_block(0, "toolu_1", "Read")
+        builder.emit_tool_delta(0, '{"path":"test.py"}')
+        builder.stop_tool_block(0)
+        builder.message_delta("tool_use", 10)
+
+        assert list(builder.append_text_suffix(" world")) == []
+        assert list(builder.append_thinking_suffix(" step")) == []
+        assert list(builder.append_tool_repair_suffix(0, " ")) == []
+
+    def test_suffix_helpers_noop_after_message_stop(self):
+        builder = AnthropicStreamLedger("msg_1", "model")
+        builder.message_stop()
+
+        assert list(builder.append_text_suffix("late")) == []
+        assert list(builder.append_thinking_suffix("late")) == []
+
+    def test_final_stop_reason_uses_emitted_tool_content(self):
+        builder = AnthropicStreamLedger("msg_1", "model")
+        assert builder.final_stop_reason("end_turn") == "end_turn"
+
+        builder.content_block_start(0, "tool_use", id="toolu_1", name="Read")
+
+        assert builder.final_stop_reason("end_turn") == "tool_use"
+
 
 class TestAnthropicStreamLedgerStateManagement:
     """Tests for ensure_thinking_block, ensure_text_block, close_all_blocks."""

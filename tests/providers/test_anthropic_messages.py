@@ -317,7 +317,7 @@ async def test_midstream_error_closes_open_block_and_uses_fresh_content_index(
 async def test_midstream_error_after_native_message_delta_does_not_duplicate_terminal(
     provider_config,
 ):
-    """If native upstream emitted message_delta before cutoff, final error must not duplicate it."""
+    """If native upstream emitted message_delta before cutoff, recovery cannot append content."""
     provider = NativeProvider(provider_config)
     req = MockRequest()
     msg_start = format_sse_event(
@@ -382,15 +382,13 @@ async def test_midstream_error_after_native_message_delta_does_not_duplicate_ter
             AnthropicMessagesRecovery,
             "collect_text",
             new_callable=AsyncMock,
-            side_effect=TruncatedProviderStreamError(
-                "Recovery stream ended without message_stop."
-            ),
+            return_value=("hello recovered", ""),
         ) as mock_collect,
     ):
         events = [e async for e in provider.stream_response(req)]
 
     parsed = parse_sse_text("".join(events))
-    assert mock_collect.await_count == 1
+    assert mock_collect.await_count == 0
     assert sum(event.event == "message_delta" for event in parsed) == 1
     assert sum(event.event == "message_stop" for event in parsed) == 1
     assert sum(event.event == "error" for event in parsed) == 1
