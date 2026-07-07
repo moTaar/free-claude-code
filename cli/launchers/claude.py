@@ -51,6 +51,15 @@ def launch(argv: Sequence[str] | None = None) -> None:
     )
 
 
+def launch_skip_permissions(argv: Sequence[str] | None = None) -> None:
+    """Launch Claude Code with --dangerously-skip-permissions prepended."""
+
+    args = list(sys.argv[1:] if argv is None else argv)
+    if "--dangerously-skip-permissions" not in args:
+        args = ["--dangerously-skip-permissions", *args]
+    launch(argv=args)
+
+
 def claude_binary_name() -> str:
     """Return the Claude Code binary name."""
 
