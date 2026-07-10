@@ -752,7 +752,7 @@ class TestPerModelMapping:
                 "open_router/anthropic/claude-3-opus",
                 "open_router/anthropic/claude-3-haiku",
             ),
-            ({"MODEL": "deepseek/deepseek-chat"}, "deepseek/deepseek-chat", None),
+            ({"MODEL": "deepseek/DeepSeek-Reasoner"}, "deepseek/DeepSeek-Reasoner", None),
             ({"MODEL": "wafer/DeepSeek-V4-Pro"}, "wafer/DeepSeek-V4-Pro", None),
             (
                 {"MODEL": "cloudflare/@cf/moonshotai/kimi-k2.6"},
@@ -945,7 +945,7 @@ class TestPerModelMapping:
             parse_provider_type("mistral_codestral/codestral-latest")
             == "mistral_codestral"
         )
-        assert parse_provider_type("deepseek/deepseek-chat") == "deepseek"
+        assert parse_provider_type("deepseek/DeepSeek-Reasoner") == "deepseek"
         assert parse_provider_type("lmstudio/qwen") == "lmstudio"
         assert parse_provider_type("llamacpp/model") == "llamacpp"
         assert parse_provider_type("ollama/llama3.1") == "ollama"
@@ -978,7 +978,7 @@ class TestPerModelMapping:
         assert (
             parse_model_name("mistral_codestral/codestral-latest") == "codestral-latest"
         )
-        assert parse_model_name("deepseek/deepseek-chat") == "deepseek-chat"
+        assert parse_model_name("deepseek/DeepSeek-Reasoner") == "DeepSeek-Reasoner"
         assert parse_model_name("lmstudio/qwen") == "qwen"
         assert parse_model_name("llamacpp/model") == "model"
         assert parse_model_name("ollama/llama3.1") == "llama3.1"

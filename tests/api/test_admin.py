@@ -622,14 +622,14 @@ def test_admin_first_apply_migrates_repo_env(monkeypatch, tmp_path):
     _clear_process_config(monkeypatch)
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".env").write_text(
-        "MODEL=deepseek/deepseek-chat\nDEEPSEEK_API_KEY=deepseek-secret\n",
+        "MODEL=deepseek/DeepSeek-Reasoner\nDEEPSEEK_API_KEY=deepseek-secret\n",
         encoding="utf-8",
     )
     app = create_app(lifespan_enabled=False)
 
     config = _local_client(app).get("/admin/api/config").json()
     model_field = next(field for field in config["fields"] if field["key"] == "MODEL")
-    assert model_field["value"] == "deepseek/deepseek-chat"
+    assert model_field["value"] == "deepseek/DeepSeek-Reasoner"
     assert model_field["source"] == "repo_env"
 
     response = _local_client(app).post(
@@ -639,7 +639,7 @@ def test_admin_first_apply_migrates_repo_env(monkeypatch, tmp_path):
 
     assert response.status_code == 200
     managed_text = (tmp_path / ".fcc" / ".env").read_text("utf-8")
-    assert "MODEL=deepseek/deepseek-chat" in managed_text
+    assert "MODEL=deepseek/DeepSeek-Reasoner" in managed_text
     assert "DEEPSEEK_API_KEY=deepseek-secret" in managed_text
 
 

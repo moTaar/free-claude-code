@@ -82,11 +82,11 @@ def test_init_migrates_home_checkout_env_before_template(tmp_path: Path) -> None
     """init() preserves users who kept config in ~/free-claude-code/.env."""
     legacy_env = tmp_path / "free-claude-code" / ".env"
     legacy_env.parent.mkdir(parents=True)
-    legacy_env.write_text("MODEL=deepseek/deepseek-chat\n", encoding="utf-8")
+    legacy_env.write_text("MODEL=deepseek/DeepSeek-Reasoner\n", encoding="utf-8")
 
     output, env_file = _run_init(tmp_path)
 
-    assert env_file.read_text("utf-8") == "MODEL=deepseek/deepseek-chat\n"
+    assert env_file.read_text("utf-8") == "MODEL=deepseek/DeepSeek-Reasoner\n"
     assert f"Config migrated from {legacy_env}" in output
 
 
@@ -267,7 +267,7 @@ def test_serve_migrates_legacy_env_before_loading_settings(tmp_path: Path) -> No
 
     legacy_env = tmp_path / "free-claude-code" / ".env"
     legacy_env.parent.mkdir(parents=True)
-    legacy_env.write_text("MODEL=deepseek/deepseek-chat\n", encoding="utf-8")
+    legacy_env.write_text("MODEL=deepseek/DeepSeek-Reasoner\n", encoding="utf-8")
     settings = _launcher_settings()
     get_settings = MagicMock(return_value=settings)
     get_settings.cache_clear = MagicMock()
@@ -281,7 +281,7 @@ def test_serve_migrates_legacy_env_before_loading_settings(tmp_path: Path) -> No
         entrypoints.serve()
 
     assert (tmp_path / ".fcc" / ".env").read_text("utf-8") == (
-        "MODEL=deepseek/deepseek-chat\n"
+        "MODEL=deepseek/DeepSeek-Reasoner\n"
     )
     get_settings.assert_called_once_with()
 

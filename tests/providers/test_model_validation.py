@@ -95,9 +95,9 @@ async def test_deepseek_lists_models_from_root_endpoint() -> None:
         provider._client.models,
         "list",
         new_callable=AsyncMock,
-        return_value=SimpleNamespace(data=[SimpleNamespace(id="deepseek-chat")]),
+        return_value=SimpleNamespace(data=[SimpleNamespace(id="DeepSeek-Reasoner")]),
     ) as mock_list:
-        assert await provider.list_model_ids() == frozenset({"deepseek-chat"})
+        assert await provider.list_model_ids() == frozenset({"DeepSeek-Reasoner"})
 
     mock_list.assert_awaited_once_with()
 
@@ -511,11 +511,11 @@ def test_runtime_model_id_cache_keeps_unknown_thinking_support() -> None:
 
 def test_runtime_cached_prefixed_model_refs_are_deterministic() -> None:
     runtime = ProviderRuntime(_settings())
-    runtime.cache_model_ids("deepseek", {"deepseek-chat"})
+    runtime.cache_model_ids("deepseek", {"DeepSeek-Reasoner"})
     runtime.cache_model_ids("open_router", {"z-model", "a-model"})
 
     assert runtime.cached_prefixed_model_refs() == (
         "open_router/a-model",
         "open_router/z-model",
-        "deepseek/deepseek-chat",
+        "deepseek/DeepSeek-Reasoner",
     )

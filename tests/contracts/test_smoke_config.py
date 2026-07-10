@@ -304,7 +304,7 @@ def test_provider_smoke_model_override_accepts_owner_model_name(
     )
     config = _smoke_config(
         settings=_settings(
-            model="deepseek/deepseek-chat",
+            model="deepseek/DeepSeek-Reasoner",
             deepseek_api_key="",
             nvidia_nim_api_key="nim-key",
             ollama_base_url="",

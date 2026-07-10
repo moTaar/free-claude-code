@@ -31,7 +31,7 @@ def test_responses_string_input_converts_to_anthropic_message() -> None:
 def test_responses_messages_tools_and_tool_results_convert() -> None:
     payload = _ADAPTER.to_anthropic_payload(
         {
-            "model": "deepseek/deepseek-chat",
+            "model": "deepseek/DeepSeek-Reasoner",
             "input": [
                 {
                     "type": "message",
@@ -111,7 +111,7 @@ def test_responses_messages_tools_and_tool_results_convert() -> None:
 def test_responses_tool_choice_none_disables_forwarded_tools() -> None:
     payload = _ADAPTER.to_anthropic_payload(
         {
-            "model": "deepseek/deepseek-chat",
+            "model": "deepseek/DeepSeek-Reasoner",
             "input": "Reply without tools",
             "tools": [
                 {

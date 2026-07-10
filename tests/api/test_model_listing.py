@@ -9,9 +9,9 @@ from providers.runtime import ProviderRuntime
 
 def _settings(
     *,
-    model: str = "deepseek/deepseek-chat",
+    model: str = "deepseek/DeepSeek-Reasoner",
     model_opus: str | None = "open_router/anthropic/claude-opus",
-    model_haiku: str | None = "deepseek/deepseek-chat",
+    model_haiku: str | None = "deepseek/DeepSeek-Reasoner",
 ) -> Settings:
     return Settings.model_construct(
         model=model,
@@ -26,7 +26,7 @@ def test_models_list_includes_configured_refs_cached_provider_models_and_aliases
     app = create_app(lifespan_enabled=False)
     settings = _settings()
     runtime = ProviderRuntime(settings)
-    runtime.cache_model_ids("deepseek", {"deepseek-chat"})
+    runtime.cache_model_ids("deepseek", {"DeepSeek-Reasoner"})
     runtime.cache_model_ids("open_router", {"meta/llama-3.3", "anthropic/claude-opus"})
     app.state.provider_runtime = runtime
     app.dependency_overrides[get_settings] = lambda: settings
@@ -41,15 +41,15 @@ def test_models_list_includes_configured_refs_cached_provider_models_and_aliases
     ids = [item["id"] for item in data["data"]]
 
     assert ids[:6] == [
-        "anthropic/deepseek/deepseek-chat",
-        "claude-3-freecc-no-thinking/deepseek/deepseek-chat",
+        "anthropic/deepseek/DeepSeek-Reasoner",
+        "claude-3-freecc-no-thinking/deepseek/DeepSeek-Reasoner",
         "anthropic/open_router/anthropic/claude-opus",
         "claude-3-freecc-no-thinking/open_router/anthropic/claude-opus",
         "anthropic/open_router/meta/llama-3.3",
         "claude-3-freecc-no-thinking/open_router/meta/llama-3.3",
     ]
-    assert ids.count("anthropic/deepseek/deepseek-chat") == 1
-    assert ids.count("claude-3-freecc-no-thinking/deepseek/deepseek-chat") == 1
+    assert ids.count("anthropic/deepseek/DeepSeek-Reasoner") == 1
+    assert ids.count("claude-3-freecc-no-thinking/deepseek/DeepSeek-Reasoner") == 1
     assert ids.count("anthropic/open_router/anthropic/claude-opus") == 1
     assert (
         ids.count("claude-3-freecc-no-thinking/open_router/anthropic/claude-opus") == 1
@@ -73,7 +73,7 @@ def test_models_list_uses_openrouter_thinking_metadata_for_cached_models():
     app = create_app(lifespan_enabled=False)
     settings = _settings(model_opus=None)
     runtime = ProviderRuntime(settings)
-    runtime.cache_model_ids("deepseek", {"deepseek-chat"})
+    runtime.cache_model_ids("deepseek", {"DeepSeek-Reasoner"})
     runtime.cache_model_infos(
         "open_router",
         {
@@ -161,8 +161,8 @@ def test_models_list_works_without_provider_runtime():
     assert response.status_code == 200
     ids = [item["id"] for item in response.json()["data"]]
     assert ids[:4] == [
-        "anthropic/deepseek/deepseek-chat",
-        "claude-3-freecc-no-thinking/deepseek/deepseek-chat",
+        "anthropic/deepseek/DeepSeek-Reasoner",
+        "claude-3-freecc-no-thinking/deepseek/DeepSeek-Reasoner",
         "anthropic/open_router/anthropic/claude-opus",
         "claude-3-freecc-no-thinking/open_router/anthropic/claude-opus",
     ]
